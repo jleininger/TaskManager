@@ -1,0 +1,17 @@
+{
+  "name": "Task Manager",
+  "description": "Keep track of your tasks",
+  "version": "0.001",
+  "manifest_version": 2,
+  "app": {
+    "background": {
+      "scripts": ["Assets/Scripts/background.js"]
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
+  "icons": {
+    "128": "Assets/Icons/HelloIcon128.png"
+  }
+}

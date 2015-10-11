@@ -1,0 +1,35 @@
+@font-face {
+    font-family: 'Geometria Light';
+    src: url('/Assets/Fonts/Geometria%20Light-Webfont/Webfonts/geometria_light_macroman/Geometria-Light-webfont.ttf');
+}
+
+body {
+    padding: 10px;
+    font-family: 'Geometria Light', Arial;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+td {
+    position: relative;
+    padding: 5px 10px;
+}
+
+.hidden {
+    display: none;
+}
+
+.visible {
+    display: block;
+}
+
+tr.strikeout td:before {
+    content: " ";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    border-bottom: 1px solid #111;
+    width: 100%;
+}
