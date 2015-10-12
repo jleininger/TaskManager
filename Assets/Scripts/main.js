@@ -9,7 +9,12 @@ var MainPage = function() {
             next7Days: null,
             future: null
         },
-        allTasks: null,
+        tasksByDate: {
+            today: [],
+            tomorrow: [],
+            next7Days: [],
+            future: []
+        },
 
         init: function() {
             this.mainContainer = document.getElementById('mainContainer');
@@ -21,9 +26,10 @@ var MainPage = function() {
             this.addBtn = document.getElementById('addBtn');
             this.addBtn.addEventListener('click', this.openAddWindow);
 
+            //taskViewer.deleteAllTasks();
             this.getAllTasks(function(tasks) {
-                var sortedTasks = taskViewer.sortTasksByDate(tasks);
-                taskViewer.displayAllTasks(sortedTasks);
+                //taskViewer.sortAllTasksByDate(tasks);
+                taskViewer.displayAllTasks(taskViewer.tasksByDate);
             });
         },
         openAddWindow: function() {
@@ -36,7 +42,7 @@ var MainPage = function() {
             taskViewer.newTaskContainer.className = 'hidden';
         },
         saveAllTasks: function() {
-            chrome.storage.sync.set({'Tasks': taskViewer.allTasks});
+            chrome.storage.sync.set({'Tasks': taskViewer.tasksByDate});
         },
         getAllTasks: function(next) {
             chrome.storage.sync.get('Tasks', function(result) {
@@ -45,73 +51,79 @@ var MainPage = function() {
                     return;
                 }
 
-                taskViewer.allTasks = result['Tasks'] || [];
-                next(taskViewer.allTasks);
+                taskViewer.tasksByDate = result['Tasks'] || taskViewer.tasksByDate;
+                next(taskViewer.tasksByDate);
             });
         },
         saveTask: function(task) {
-            var taskIndex = taskViewer.allTasks.push(task);
-            taskViewer.createTaskDisplay(taskViewer.allTasks[taskIndex - 1], taskIndex - 1);
+            var taskDetails = taskViewer.sortTaskByDate(task);
+            taskViewer.createTaskDisplay(task, taskDetails.index, taskDetails.tableType);
         },
-        completeTask: function(index) {
-            var currentClass = taskViewer.taskTable.rows[index + 1].className;
+        completeTask: function(index, taskType) {
+            if(taskType === 'today') { index += 1; }
+            var currentClass = taskViewer.tables[taskType].rows[index].className;
 
             currentClass = (currentClass === 'strikeout') ? '' : 'strikeout';
-            taskViewer.taskTable.rows[index + 1].className = currentClass;
+            taskViewer.tables[taskType].rows[index].className = currentClass;
         },
-        deleteTask: function(index) {
-            taskViewer.allTasks.splice(index, 1);
-            taskViewer.taskTable.deleteRow(index + 1);
+        deleteTask: function(index, taskType) {
+            if(taskType === 'today') { index += 1; }
+            taskViewer.tasksByDate[taskType].splice(index, 1);
+            taskViewer.tables[taskType].deleteRow(index);
             this.saveAllTasks();
         },
-        sortTasksByDate: function(tasks) {
-            var tasksByDates = {
-                today: [],
-                tomorrow: [],
-                next7Days: [],
-                future: []
-                },
+        sortAllTasksByDate: function(tasks) {
+            for(var i = 0; i < tasks.length; i++) {
+                taskViewer.sortTaskByDate(tasks[i]);
+            }
+        },
+        sortTaskByDate: function(task) {
+            //TODO: Creating multiple date objects, possibly slow may need refactor
+            var dueDate = new Date(task.dueDate),
                 today = new Date(),
                 tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1),
-                next7Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
-;
-            for(var i = 0; i < tasks.length; i++) {
-                var dueDate = new Date(tasks[i].dueDate),
-                    dueTime = tasks[i].dueTime;
+                next7Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7),
+                taskDetails = {
+                    index: 0,
+                    tableType: 'not set'
+                };
 
-                dueDate.setDate(dueDate.getDate() + 1);
+            //Dates end up being a day behind for some reason; quick fix
+            //dueDate.setDate(dueDate.getDate() + 1);
 
-                if(dateCalc.compareDay(today, dueDate) === 0) {
-                    tasksByDates.today.push(tasks[i]);
-                } else if(dateCalc.compareDay(tomorrow, dueDate) === 0) {
-                    tasksByDates.tomorrow.push(tasks[i]);
-                } else if(dateCalc.compareDay(dueDate, next7Days) < 0) {
-                    tasksByDates.next7Days.push(tasks[i]);
-                } else {
-                    tasksByDates.future.push(tasks[i]);
-                }
+            if(dateCalc.compareDay(today, dueDate) === 0) {
+                taskDetails.index = taskViewer.tasksByDate.today.push(task);
+                taskDetails.tableType = 'today';
+            } else if(dateCalc.compareDay(tomorrow, dueDate) === 0) {
+                taskDetails.index = taskViewer.tasksByDate.tomorrow.push(task);
+                taskDetails.tableType = 'tomorrow';
+            } else if(dateCalc.compareDay(dueDate, next7Days) < 0) {
+                taskDetails.index = taskViewer.tasksByDate.next7Days.push(task);
+                taskDetails.tableType = 'next7Days';
+            } else {
+                taskDetails.index = taskViewer.tasksByDate.future.push(task);
+                taskDetails.tableType = 'future';
             }
 
-            return tasksByDates;
+            return taskDetails;
         },
         displayAllTasks: function(tasks) {
             for(var taskCategory in tasks) {
                 if(tasks.hasOwnProperty(taskCategory)) {
                     for(var i = 0; i < tasks[taskCategory].length; i++) {
-                        console.log(tasks[taskCategory]);
-                        taskViewer.createTaskDisplay(tasks[taskCategory][i], i, taskViewer.tables[taskCategory]);
+                        taskViewer.createTaskDisplay(tasks[taskCategory][i], i, taskCategory);
                     }
                 }
             }
         },
-        createTaskDisplay: function(task, index, taskTable) {
-            var newRow = taskTable.insertRow(taskTable.length);
+        createTaskDisplay: function(task, index, taskCategory) {
+            var newRow = taskViewer.tables[taskCategory].insertRow(taskViewer.tables[taskCategory].length);
 
             var taskCompleteCell = newRow.insertCell(0);
             var completeCheckBox = document.createElement('input');
             completeCheckBox.type = 'checkbox';
             completeCheckBox.addEventListener('click', function() {
-               taskViewer.completeTask(index);
+               taskViewer.completeTask(index, taskCategory);
             });
             taskCompleteCell.appendChild(completeCheckBox);
 
@@ -129,7 +141,7 @@ var MainPage = function() {
             buttonElem.className = 'close pull-left';
             buttonElem.innerHTML = "<span aria-hidden='true'>&times;</span>";
             buttonElem.addEventListener('click', function() {
-                taskViewer.deleteTask(index);
+                taskViewer.deleteTask(index, taskCategory);
             });
             deleteIcon.appendChild(buttonElem);
         },
