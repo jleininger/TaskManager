@@ -4,12 +4,15 @@ var MainPage = function() {
         newTaskContainer: null,
         addBtn: null,
         tables: {
+            overdue: null,
             today: null,
             tomorrow: null,
             next7Days: null,
             future: null
         },
         tasksByDate: {
+            lastUpdate: new Date(),
+            overdue: [],
             today: [],
             tomorrow: [],
             next7Days: [],
@@ -19,6 +22,7 @@ var MainPage = function() {
         init: function() {
             this.mainContainer = document.getElementById('mainContainer');
             this.newTaskContainer = document.getElementById('newTaskContainer');
+            this.tables['overdue'] = document.getElementById('overdueTaskTable');
             this.tables['today'] = document.getElementById('todayTaskTable');
             this.tables['tomorrow'] = document.getElementById('tomTaskTable');
             this.tables['next7Days'] = document.getElementById('weekTaskTable');
@@ -28,7 +32,7 @@ var MainPage = function() {
 
             //taskViewer.deleteAllTasks();
             this.getAllTasks(function(tasks) {
-                //taskViewer.sortAllTasksByDate(tasks);
+                taskViewer.sortAllTasksByDate(tasks);
                 taskViewer.displayAllTasks(taskViewer.tasksByDate);
             });
         },
@@ -51,8 +55,7 @@ var MainPage = function() {
                     return;
                 }
 
-                taskViewer.tasksByDate = result['Tasks'] || taskViewer.tasksByDate;
-                next(taskViewer.tasksByDate);
+                next(result['Tasks'] || taskViewer.tasksByDate);
             });
         },
         saveTask: function(task) {
@@ -60,11 +63,13 @@ var MainPage = function() {
             taskViewer.createTaskDisplay(task, taskDetails.index, taskDetails.tableType);
         },
         completeTask: function(index, taskType) {
-            if(taskType === 'today') { index += 1; }
-            var currentClass = taskViewer.tables[taskType].rows[index].className;
+            var task = taskViewer.tasksByDate[taskType][(taskType === 'today') ? index - 1 : index];
+            task.complete = !task.complete;
 
+            var currentClass = taskViewer.tables[taskType].rows[index].className;
             currentClass = (currentClass === 'strikeout') ? '' : 'strikeout';
             taskViewer.tables[taskType].rows[index].className = currentClass;
+            this.saveAllTasks();
         },
         deleteTask: function(index, taskType) {
             if(taskType === 'today') { index += 1; }
@@ -73,8 +78,15 @@ var MainPage = function() {
             this.saveAllTasks();
         },
         sortAllTasksByDate: function(tasks) {
-            for(var i = 0; i < tasks.length; i++) {
-                taskViewer.sortTaskByDate(tasks[i]);
+            var taskHolder = [];
+            taskHolder = taskHolder.concat(tasks.overdue);
+            taskHolder = taskHolder.concat(tasks.today);
+            taskHolder = taskHolder.concat(tasks.tomorrow);
+            taskHolder = taskHolder.concat(tasks.next7Days);
+            taskHolder = taskHolder.concat(tasks.future);
+
+            for(var i = 0; i < taskHolder.length; i++) {
+                taskViewer.sortTaskByDate(taskHolder[i]);
             }
         },
         sortTaskByDate: function(task) {
@@ -89,9 +101,14 @@ var MainPage = function() {
                 };
 
             //Dates end up being a day behind for some reason; quick fix
-            //dueDate.setDate(dueDate.getDate() + 1);
+            dueDate.setDate(dueDate.getDate() + 1);
 
-            if(dateCalc.compareDay(today, dueDate) === 0) {
+            if(dateCalc.compareDay(today, dueDate) > 0) {
+                if(!task.complete)  {
+                    taskDetails.index = taskViewer.tasksByDate.overdue.push(task);
+                    taskDetails.tableType = "overdue";
+                }
+            } else if(dateCalc.compareDay(today, dueDate) === 0) {
                 taskDetails.index = taskViewer.tasksByDate.today.push(task);
                 taskDetails.tableType = 'today';
             } else if(dateCalc.compareDay(tomorrow, dueDate) === 0) {
@@ -119,12 +136,18 @@ var MainPage = function() {
         createTaskDisplay: function(task, index, taskCategory) {
             var newRow = taskViewer.tables[taskCategory].insertRow(taskViewer.tables[taskCategory].length);
 
+            if(taskCategory === "overdue") { newRow.className += 'danger'; }
+
             var taskCompleteCell = newRow.insertCell(0);
             var completeCheckBox = document.createElement('input');
             completeCheckBox.type = 'checkbox';
             completeCheckBox.addEventListener('click', function() {
-               taskViewer.completeTask(index, taskCategory);
+               taskViewer.completeTask(newRow.rowIndex, taskCategory);
             });
+            if(task.complete) {
+                newRow.className += ' strikeout';
+                completeCheckBox.checked = true;
+            }
             taskCompleteCell.appendChild(completeCheckBox);
 
             var taskNameCell = newRow.insertCell(1);
@@ -180,7 +203,8 @@ var MainPage = function() {
                 desc: taskDesc,
                 dueDate: taskDueDate,
                 dueTime: taskDueTime,
-                reoccurring: reoccurring
+                reoccurring: reoccurring,
+                completed: false
             };
 
             return newTask;

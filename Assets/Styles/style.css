@@ -12,6 +12,13 @@ table {
     border-collapse: collapse;
 }
 
+tr {
+    width: 150px;
+    height: 10px;
+    overflow-y: hidden;
+    text-overflow: ellipsis;
+}
+
 td {
     position: relative;
     padding: 5px 10px;
