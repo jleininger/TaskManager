@@ -3,6 +3,7 @@ var MainPage = function() {
         mainContainer: null,
         newTaskContainer: null,
         addBtn: null,
+        deleteBtn: null,
         tables: {
             overdue: null,
             today: null,
@@ -11,7 +12,6 @@ var MainPage = function() {
             future: null
         },
         tasksByDate: {
-            lastUpdate: new Date(),
             overdue: [],
             today: [],
             tomorrow: [],
@@ -29,8 +29,9 @@ var MainPage = function() {
             this.tables['future'] = document.getElementById('futureTaskTable');
             this.addBtn = document.getElementById('addBtn');
             this.addBtn.addEventListener('click', this.openAddWindow);
+            this.deleteBtn = document.getElementById('deleteBtn');
+            this.deleteBtn.addEventListener('click', this.deleteAllTasks);
 
-            //taskViewer.deleteAllTasks();
             this.getAllTasks(function(tasks) {
                 taskViewer.sortAllTasksByDate(tasks);
                 taskViewer.displayAllTasks(taskViewer.tasksByDate);
@@ -59,8 +60,12 @@ var MainPage = function() {
             });
         },
         saveTask: function(task) {
-            var taskDetails = taskViewer.sortTaskByDate(task);
-            taskViewer.createTaskDisplay(task, taskDetails.index, taskDetails.tableType);
+            if(task.reoccurring) {
+                taskViewer.createReoccurringTask(task);
+            } else {
+                var taskDetails = taskViewer.sortTaskByDate(task);
+                taskViewer.createTaskDisplay(task, taskDetails.index, taskDetails.tableType);
+            }
         },
         completeTask: function(index, taskType) {
             var task = taskViewer.tasksByDate[taskType][(taskType === 'today') ? index - 1 : index];
@@ -77,6 +82,15 @@ var MainPage = function() {
             taskViewer.tables[taskType].deleteRow(index);
             this.saveAllTasks();
         },
+        createReoccurringTask: function(task) {
+            var allTasks = taskViewer.tasksByDate;
+            for(var taskCategory in allTasks) {
+                if(allTasks.hasOwnProperty(taskCategory) && taskCategory !== 'overdue') {
+                    var index = allTasks[taskCategory].push(task);
+                    taskViewer.createTaskDisplay(task, index, taskCategory);
+                }
+            }
+        },
         sortAllTasksByDate: function(tasks) {
             var taskHolder = [];
             taskHolder = taskHolder.concat(tasks.overdue);
@@ -86,7 +100,11 @@ var MainPage = function() {
             taskHolder = taskHolder.concat(tasks.future);
 
             for(var i = 0; i < taskHolder.length; i++) {
-                taskViewer.sortTaskByDate(taskHolder[i]);
+                if(taskHolder[i].reoccurring) {
+                    taskViewer.createReoccurringTask(taskHolder[i]);
+                } else {
+                    taskViewer.sortTaskByDate(taskHolder[i]);
+                }
             }
         },
         sortTaskByDate: function(task) {
@@ -104,7 +122,7 @@ var MainPage = function() {
             dueDate.setDate(dueDate.getDate() + 1);
 
             if(dateCalc.compareDay(today, dueDate) > 0) {
-                if(!task.complete)  {
+                if(!task.complete || task.reoccurring)  {
                     taskDetails.index = taskViewer.tasksByDate.overdue.push(task);
                     taskDetails.tableType = "overdue";
                 }
@@ -152,16 +170,19 @@ var MainPage = function() {
 
             var taskNameCell = newRow.insertCell(1);
             taskNameCell.innerHTML = task.name;
+            taskNameCell.title = task.name;
 
             var taskDescCell = newRow.insertCell(2);
             taskDescCell.innerHTML = task.desc;
+            taskDescCell.title = task.desc;
 
             var taskDueDateCell = newRow.insertCell(3);
             taskDueDateCell.innerHTML = task.dueDate + '@' + task.dueTime;
+            taskDueDateCell.title = task.dueDate + '@' + task.dueTime;
 
             var deleteIcon = newRow.insertCell(4);
             var buttonElem = document.createElement('button');
-            buttonElem.className = 'close pull-left';
+            buttonElem.className = 'close pull-right';
             buttonElem.innerHTML = "<span aria-hidden='true'>&times;</span>";
             buttonElem.addEventListener('click', function() {
                 taskViewer.deleteTask(index, taskCategory);
@@ -177,14 +198,19 @@ var MainPage = function() {
 
     var newTaskWindow = {
         newTaskForm: null,
+        reoccurringBtn: null,
+        dateInput: null,
         createBtn: null,
         cancelBtn: null,
+        greyOutDateInput: function() {
+            newTaskWindow.dateInput.disabled = newTaskWindow.reoccurringBtn.checked;
+        },
         addNewTask: function() {
             var taskName = document.getElementById('taskName').value,
                 taskDec = document.getElementById('taskDesc').value,
-                taskDueDate = document.getElementById('taskDueDate').value,
+                taskDueDate = newTaskWindow.dateInput.value,
                 taskDueTime = document.getElementById('taskDueTime').value,
-                taskReoccurring = document.getElementById('taskReoccurring').checked;
+                taskReoccurring = newTaskWindow.reoccurringBtn.checked;
 
             var task = newTaskWindow.createTask(taskName, taskDec, taskDueDate, taskDueTime, taskReoccurring);
             taskViewer.saveTask(task);
@@ -193,10 +219,12 @@ var MainPage = function() {
             taskViewer.saveAllTasks();
         },
         createTask: function(taskName, taskDesc, taskDueDate, taskDueTime, reoccurring) {
-            if(!taskName || taskName === '') {
-                window.alert('You must have a name for a new task!');
+            if((!taskName || taskName === '') || (!taskDueDate || taskDueDate === '') && !reoccurring) {
+                console.log('You must have a name and date for a new task!');
                 return;
             }
+
+            if(!taskDueTime || taskDueTime === '') { taskDueTime = 'whenever'; }
 
             var newTask = {
                 name: taskName,
@@ -215,19 +243,19 @@ var MainPage = function() {
         },
         init: function() {
             this.newTaskForm = document.getElementById('newTaskForm');
+            this.reoccurringBtn = document.getElementById('taskReoccurring');
+            this.dateInput = document.getElementById('taskDueDate');
             this.createBtn = document.getElementById('createBtn');
             this.cancelBtn = document.getElementById('cancelBtn');
 
             //Listeners
+            this.reoccurringBtn.addEventListener('click', this.greyOutDateInput);
             this.createBtn.addEventListener('click', this.addNewTask);
             this.cancelBtn.addEventListener('click', this.cancelTaskCreation);
         }
     };
 
     var dateCalc = {
-        convert24to12: function() {
-
-        },
         compareDay: function(date1, date2) {
             date1.setHours(0,0,0,0);
             date2.setHours(0,0,0,0);
@@ -239,12 +267,6 @@ var MainPage = function() {
             }
 
             return 0;
-        },
-        compareHour: function() {
-
-        },
-        sortDates: function() {
-
         }
     };
 

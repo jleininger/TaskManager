@@ -3,6 +3,10 @@
     src: url('/Assets/Fonts/Geometria%20Light-Webfont/Webfonts/geometria_light_macroman/Geometria-Light-webfont.ttf');
 }
 
+html {
+    overflow-y: scroll;
+}
+
 body {
     padding: 10px;
     font-family: 'Geometria Light', Arial;
@@ -20,8 +24,10 @@ tr {
 }
 
 td {
-    position: relative;
-    padding: 5px 10px;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hidden {
